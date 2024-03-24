@@ -78,8 +78,3 @@ export async function authenticateUser(
     throw new Error("Could authenticate user")
   }
 }
-
-export function createNewSession (user:Login): string{
-  const accessToken = jwt.sign(user, process.env.ACCESS_TOKEN_SECRET as Secret)
-  return accessToken
-}
