@@ -1,12 +1,17 @@
 import bcrypt from 'bcrypt'
-import { AccountStatus, CreateUser, User } from './users.types';
+import { AccountStatus, CreateUser, Login, User } from './users.types';
 import logger from "../../utils/logger";
 import {connectToDb} from '../../utils/db';
 import { Db } from 'mongodb';
+import dotenv from 'dotenv'
+dotenv.config();
+import jwt, { Secret } from 'jsonwebtoken'
+
+const dbName = process.env.DB_NAME
 
 export async function createUser(user: CreateUser): Promise<User>{
   const dbClient = await connectToDb()
-  const db: Db = dbClient.db('book-store')
+  const db: Db = dbClient.db(dbName)
   try{
     // hash password
     const salt = await bcrypt.genSalt()
@@ -27,7 +32,7 @@ export async function createUser(user: CreateUser): Promise<User>{
 
 export async function userExists(email: string):Promise<boolean>{
   const dbClient = await connectToDb()
-  const db: Db = dbClient.db('book-store')
+  const db: Db = dbClient.db(dbName)
 
   try{
     // check if user already exists
@@ -43,6 +48,38 @@ export async function getUsers() {
   return { message: "Users fetched successfully" };
 }
 
-export async function getSingleUser(userId: string) {
-  return { userId };
+export async function getSingleUserWithEmail(email: string): Promise<Login|null> {
+  const dbClient = await connectToDb()
+  const db: Db = dbClient.db(dbName)
+
+  try{
+    const user:Login = await db.collection('users').findOne({email}) as unknown as Login
+    return user
+  }catch(e){
+    logger.error('Error getting user with email:', e)
+    throw new Error("Could not reterieve user data.")
+  }finally{
+    await dbClient.close()
+  }
+}
+
+export async function authenticateUser(
+  {
+    providedPassword,
+    userPassword
+  }:{
+    providedPassword:string,
+    userPassword:string
+  }):Promise<boolean>{
+  try{
+    return bcrypt.compare(providedPassword, userPassword)
+  }catch(e){
+    logger.error('Error authenticating user:', e)
+    throw new Error("Could authenticate user")
+  }
+}
+
+export function createNewSession (user:Login): string{
+  const accessToken = jwt.sign(user, process.env.ACCESS_TOKEN_SECRET as Secret)
+  return accessToken
 }

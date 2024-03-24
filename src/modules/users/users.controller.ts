@@ -1,5 +1,5 @@
 import { Request, Response } from "express";
-import { createUser, getUsers, getSingleUser, userExists } from "./users.service";
+import { authenticateUser, createNewSession, createUser, getSingleUserWithEmail, getUsers, userExists } from "./users.service";
 import { createUserSchema, loginSchema } from "./users.validator";
 import logger from "../../utils/logger";
 
@@ -26,17 +26,23 @@ export class UserController {
     }
   }
 
-  async getSingleUser(req: Request, res: Response) {
-    const result = await getSingleUser(req.params.userId);
-    res.status(200).json(result);
-  }
-
   async login(req: Request, res: Response){
     // login the user
     try{
       // authenitcate user
       await loginSchema.validateAsync(req.body);
-      return res.status(200).send()
+      const user = await getSingleUserWithEmail(req.body.email)
+      if (!user){
+        return res.status(400).send({message: "Cannot find user"})
+      }
+      const isAuthenticated = await authenticateUser({providedPassword:req.body.password, userPassword: user.password})
+      if (!isAuthenticated){
+        return res.status(400).send({message:"Wrong email or password"})
+      }
+      // carry on
+      const accessToken = createNewSession(user)
+
+      return res.status(200).send({accessToken})
     }catch(e){
       logger.error(e)
       res.status(500).send({message:"Error logging you in"})
